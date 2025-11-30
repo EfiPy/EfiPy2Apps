@@ -1,0 +1,3 @@
+[submodule "SimpleFileRemoteCopy"]
+	path = SimpleFileRemoteCopy
+	url = git@github.com:EfiPy/SimpleFileRemoteCopy.git
