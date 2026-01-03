@@ -21,7 +21,8 @@ def CorePyAdd (a: int, b: int, DumpCode: bool = False) -> int:
     import corepy.arch.x86_64.lib.memory as mem
     import corepy.arch.x86_64.platform as env
 
-    code    = env.InstructionStream()
+    prgm    = env.Program()
+    code    = prgm.get_stream()
     proc    = env.Processor()
     params  = env.ExecParams()
 
@@ -31,10 +32,11 @@ def CorePyAdd (a: int, b: int, DumpCode: bool = False) -> int:
     code.add(x86.mov(reg.rax, mem.MemRef(reg.rbp, 16)))  # ret = a
     code.add(x86.add(reg.rax, mem.MemRef(reg.rbp, 24)))  # ret = ret + b
 
+    prgm.add (code)
     if DumpCode:
-        code.print_code(pro = True, epi = True, hex = True)
+        prgm.print_code(pro = True, epi = True, hex = True)
 
-    return proc.execute(code, params = params, mode = 'int')
+    return proc.execute(prgm, params = params, mode = 'int')
 
 if __name__ == '__main__':
 

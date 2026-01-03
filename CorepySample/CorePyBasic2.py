@@ -21,15 +21,17 @@ def CorePyAdd (a: int, b: int, DumpCode: bool = False) -> int:
     import corepy.arch.x86_64.lib.memory as mem
     import corepy.arch.x86_64.platform as env
 
-    code    = env.InstructionStream()
+    prgm    = env.Program()
+    code    = prgm.get_stream()
 
     code.add(x86.mov(reg.rax, mem.MemRef(reg.rbp, 16)))  # ret = a
     code.add(x86.add(reg.rax, mem.MemRef(reg.rbp, 24)))  # ret = ret + b
 
+    prgm.add(code)
     if DumpCode:
         code.print_code(pro = True, epi = True, hex = True)
 
-    CodeAddr, CodeBytes = code.get_code_bytes ()
+    CodeAddr, CodeBytes = prgm.get_code_bytes ()
 
     import EfiPy2 as EfiPy
 

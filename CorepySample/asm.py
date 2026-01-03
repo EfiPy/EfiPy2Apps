@@ -16,24 +16,25 @@
 # along with EfiPy.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-import corepy.lib.printer as printer
 import corepy.arch.x86_64.isa as x86
 from corepy.arch.x86_64.types.registers import *
 import corepy.arch.x86_64.platform as env
 
-code = env.InstructionStream()
+prgm = env.Program()
+code = prgm.get_stream()
 proc = env.Processor()
-
 
 code.add(x86.mov(dx, 0x80))
 code.add(x86.mov(ax, 0xaa))
 code.add(x86.out(dx, ax))
 
-code.print_code(pro = True, epi = True, hex = True)
+prgm.add(code)
+prgm.print_code(pro = True, epi = True, hex = True)
 
-CodeAddr, CodeBytes = code.get_code_bytes ()
+CodeAddr, CodeBytes = prgm.get_code_bytes ()
 print (f'Dump binary code from address 0x{CodeAddr:08X}...')
 from EfiPy2.Lib.HexDump import HexDump
 HexDump (bytes (CodeBytes[:]), HexOffset = CodeAddr, DumpLead = 1)
 
-proc.execute(code)
+ret = proc.execute(prgm, mode = 'int')
+print (f'0x{ret:08X}')
