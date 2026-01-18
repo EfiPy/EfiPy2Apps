@@ -2,17 +2,12 @@
 #
 #   part of EfiPy2
 #
-# Copyright (C) 2025 MaxWu efipy.core@gmail.com
+# Copyright (C) 2025 - 2026 MaxWu efipy.core@gmail.com
 #   GPL-2.0
 #
 import os
 
-if os.name == 'edk2':
-    from EfiPy2.Lib.Acpi.AcpiRetrieveUefi  import AcpiTableList
-elif os.name == 'posix':
-    from EfiPy2.Lib.Acpi.AcpiRetrieveLinux import AcpiTableList
-elif os.name == 'nt':
-    from EfiPy2.Lib.Acpi.AcpiRetrieveWin import AcpiTableList
+from EfiPy2.Lib.Acpi.AcpiRetrieve import AcpiTableList
 
 if __name__ == '__main__':
 

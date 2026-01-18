@@ -2,7 +2,7 @@
 #
 #   part of EfiPy2
 #
-# Copyright (C) 2025 MaxWu efipy.core@gmail.com
+# Copyright (C) 2025 - 2026 MaxWu efipy.core@gmail.com
 #   GPL-2.0
 #
 
@@ -16,7 +16,7 @@ from EfiPy2.Lib.HexDump import HexDump
 def GetBufFromPa (Pa: int):
   import os
   if os.name == 'nt':
-    return -1
+    return None, None
   elif os.name == 'edk2':
     return bytes ((EfiPy2.UINT8 * 4096).from_address (Pa)), 0
 
@@ -38,10 +38,14 @@ def GetBufFromPa (Pa: int):
   return MmapHandle, Offset
 
 def ParsingBasicFp (Entry: int) -> bool:
+
+  VaBuff, Offset = GetBufFromPa (Entry)
+  if (None, None) == (VaBuff, Offset):
+    return
+
   print ("""
 Firmware Basic Boot Performcance Table (FBPT) entry: 0x{Entry:08X}
 =======================================================================================================================""")
-  VaBuff, Offset = GetBufFromPa (Entry)
 
   class BasicBootRecord (Acpi.EFIPY_INDUSTRY_STRUCTURE):
     _fields_ = [
@@ -53,10 +57,14 @@ Firmware Basic Boot Performcance Table (FBPT) entry: 0x{Entry:08X}
   HexDump (VaBuff[Offset: Offset + EfiPy2.sizeof (Table)])
 
 def ParsingS3Fp (Entry: int) -> bool:
+
+  VaBuff, Offset = GetBufFromPa (Entry)
+  if (None, None) == (VaBuff, Offset):
+    return
+
   print (f"""
 S3 Performcance Table (S3PT) entry: 0x{Entry:08X}
 =======================================================================================================================""")
-  VaBuff, Offset = GetBufFromPa (Entry)
 
   class S3BootRecord (Acpi.EFIPY_INDUSTRY_STRUCTURE):
     _fields_ = [
@@ -87,15 +95,12 @@ if __name__ == '__main__':
     from EfiPy2.MdePkg.IndustryStandard import Acpi
     FpdtSignature = b'FPDT'
 
-    import os
-    if os.name == 'nt':
-      from EfiPy2.Lib.Acpi.AcpiRetrieveWin  import ExtractTable
-    elif os.name == 'posix':
-      from EfiPy2.Lib.Acpi.AcpiRetrieveLinux  import ExtractTable
-    elif os.name == 'edk2':
-      from EfiPy2.Lib.Acpi.AcpiRetrieveUefi  import ExtractTable
+    from EfiPy2.Lib.Acpi.AcpiRetrieve import ExtractTable
 
     FpdtRaw = ExtractTable (FpdtSignature, 0)
+    if FpdtRaw is None:
+      print ('Can not retrieve FPDT')
+      exit(0)
     FpdtObj, FpdtType = AcpiFpdtParser (FpdtRaw)
 
     print ("""

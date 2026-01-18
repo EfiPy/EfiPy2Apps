@@ -1,4 +1,4 @@
-# Acpi_Bgrt.py
+# Acpi_Mcfg.py
 #
 #   part of EfiPy2
 #
@@ -14,15 +14,12 @@ if __name__ == '__main__':
 
     McfgSignature = b'MCFG'
 
-    import os
-    if os.name == 'nt':
-      from EfiPy2.Lib.Acpi.AcpiRetrieveWin  import ExtractTable
-    elif os.name == 'posix':
-      from EfiPy2.Lib.Acpi.AcpiRetrieveLinux  import ExtractTable
-    elif os.name == 'edk2':
-      from EfiPy2.Lib.Acpi.AcpiRetrieveUefi  import ExtractTable
+    from EfiPy2.Lib.Acpi.AcpiRetrieve import ExtractTable
 
     McfgRaw = ExtractTable (McfgSignature, 0)
+    if McfgRaw is None:
+      print ('Can not retrieve MCFG')
+      exit(0)
     McfgObj, McfgType = AcpiMcfgParser (McfgRaw)
 
     DumpStruct (2, McfgObj, McfgType)

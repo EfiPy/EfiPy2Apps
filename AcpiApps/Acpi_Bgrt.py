@@ -2,7 +2,7 @@
 #
 #   part of EfiPy2
 #
-# Copyright (C) 2025 MaxWu efipy.core@gmail.com
+# Copyright (C) 2025 - 2026 MaxWu efipy.core@gmail.com
 #   GPL-2.0
 #
 
@@ -68,15 +68,12 @@ if __name__ == '__main__':
     from EfiPy2.MdePkg.IndustryStandard import Acpi
     BgrtSignature = b'BGRT'
 
-    import os
-    if os.name == 'nt':
-      from EfiPy2.Lib.Acpi.AcpiRetrieveWin  import ExtractTable
-    elif os.name == 'posix':
-      from EfiPy2.Lib.Acpi.AcpiRetrieveLinux  import ExtractTable
-    elif os.name == 'edk2':
-      from EfiPy2.Lib.Acpi.AcpiRetrieveUefi  import ExtractTable
+    from EfiPy2.Lib.Acpi.AcpiRetrieve import ExtractTable
 
     BgrtRaw = ExtractTable (BgrtSignature, 0)
+    if BgrtRaw is None:
+      print ('Can not retrieve BGRT')
+      exit(0)
     BgrtObj, BgrtType = AcpiBgrtParser (BgrtRaw)
 
     print (f"""

@@ -1,12 +1,9 @@
 #
-# ImportEfiPy.py
+# EfiPyInfo.py
 #
 # Copyright (C) 2026 efipy.core@gmail.com All rights reserved.
 #
 
-#
-#
-#
 import os, sys
 import EfiPy2 as EfiPy
 

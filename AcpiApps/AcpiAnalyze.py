@@ -2,7 +2,7 @@
 #
 #   part of EfiPy2
 #
-# Copyright (C) 2025 MaxWu efipy.core@gmail.com
+# Copyright (C) 2025 - 2026 MaxWu efipy.core@gmail.com
 #   GPL-2.0
 #
 
@@ -185,13 +185,7 @@ if __name__ == '__main__':
       AcpiSignature = bytes (args.table.encode('utf-8'))
       print (f'Analyze signature {AcpiSignature}')
 
-      import os
-      if os.name == 'nt':
-        from EfiPy2.Lib.Acpi.AcpiRetrieveWin  import ExtractTable
-      elif os.name == 'posix':
-        from EfiPy2.Lib.Acpi.AcpiRetrieveLinux  import ExtractTable
-      elif os.name == 'edk2':
-        from EfiPy2.Lib.Acpi.AcpiRetrieveUefi  import ExtractTable
+      from EfiPy2.Lib.Acpi.AcpiRetrieve import ExtractTable
 
       AcpiRaw = ExtractTable (AcpiSignature, AcpiIndex)
 
