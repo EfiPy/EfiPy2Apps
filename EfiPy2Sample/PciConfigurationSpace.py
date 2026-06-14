@@ -14,7 +14,7 @@ import EfiPy2 as EfiPy
 from EfiPy2.MdePkg.IndustryStandard import EFIPY_INDUSTRY_STRUCTURE, EFIPY_INDUSTRY_UNION
 import EfiPy2.MdePkg.IndustryStandard.Pci as pci
 
-from EfiPy2.Lib.Acpi.AcpiRetrieveUefi  import ExtractTable
+from EfiPy2.Lib.Acpi.AcpiRetrieve   import ExtractTable
 from EfiPy2.Lib.Acpi.AcpiMcfgParser import AcpiMcfgParser
 
 EFIPY_PCI_CAPABILITY_HT         = 0x08    # HyperTransport
