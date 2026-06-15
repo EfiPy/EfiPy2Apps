@@ -78,8 +78,7 @@ def ScanBus (Bus, Depth):
 
 if __name__ == '__main__':
 
-  AcpiRaw = ExtractTable (b'MCFG', 0)
-  AcpiObj, AcpiType = AcpiMcfgParser (AcpiRaw)
-  PciCfgBase = AcpiObj.McfgDesc.BaseAddress
+  from EfiPy2.Lib import EfiPyPci
+  PciCfgBase = EfiPyPci.GetBaseAddress ()
 
   ScanBus (0, 0)
