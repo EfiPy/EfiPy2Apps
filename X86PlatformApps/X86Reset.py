@@ -1,4 +1,4 @@
-# EfiPy2Reset.py
+# X86Reset.py
 #
 #   part of EfiPy2
 #
@@ -65,8 +65,8 @@ def main ():
         print (f'Process "{UefiBootArg.help}"')
         Reset.UefiOp (EfiResetPlatformSpecific, DryRun)
     else:
-        print (f'Process "{ShutdownArg.help}"')
-        Reset.UefiOp (EfiResetShutdown, DryRun)
+        print (f'Process "{ColdBootArg.help}"')
+        Reset.Cf9Reset (0x0E, DryRun)
 
 if __name__ == '__main__':
     main ()

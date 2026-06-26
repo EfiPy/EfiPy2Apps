@@ -2,7 +2,7 @@
 #
 #   part of EfiPy2
 #
-# Copyright (C) 2025 MaxWu efipy.core@gmail.com
+# Copyright (C) 2025 -2026 MaxWu efipy.core@gmail.com
 #   GPL-2.0
 #
 
@@ -447,5 +447,5 @@ elif args.write:
 elif args.read:
     MsrRead (Processors, args.verbose)
 else:
-    print (f'Read, Write or dump is one of required parameter in X86MsrInfo')
+    parser.print_help()
     exit(-1)

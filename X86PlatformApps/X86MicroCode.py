@@ -2,7 +2,7 @@
 #
 #   part of EfiPy2
 #
-# Copyright (C) 2025 MaxWu efipy.core@gmail.com
+# Copyright (C) 2025 -2026 MaxWu efipy.core@gmail.com
 #   GPL-2.0
 #
 
@@ -21,4 +21,5 @@ Me.CpuId (CpuId.CPUID_VERSION_INFO, 0x00, CpuIdReg)
 Signature = MSR_IA32_BIOS_SIGN_ID_REGISTER ()
 Me.RdMsr (MSR_IA32_BIOS_SIGN_ID, Signature)
 
-print (f"Micro Code Signature: 0x{Signature.Bits.MicrocodeUpdateSignature:08X}")
+MicroCodeSig = Signature.Bits.MicrocodeUpdateSignature
+print (f"Micro Code Signature: {MicroCodeSig} (0x{MicroCodeSig:08X})")

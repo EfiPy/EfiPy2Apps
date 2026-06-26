@@ -2,13 +2,13 @@
 #
 #   part of EfiPy2
 #
-# Copyright (C) 2025 MaxWu efipy.core@gmail.com
+# Copyright (C) 2025 - 2026 MaxWu efipy.core@gmail.com
 #   GPL-2.0
 #
 
 import EfiPy2 as EfiPy
 from EfiPy2.Lib import CpuIdIntel as CpuId
-from EfiPy2.Lib.X86Processor import Me
+from EfiPy2.Lib.X86Processor import Me, X86ProcessorArray
 
 import argparse
 parser = argparse.ArgumentParser (prog = 'X86CouInfo.py')
@@ -49,6 +49,7 @@ BrandString = bytes (BrandString1.EAX.BrandString[:] +
 
 print (f'Vendir ID: "{VendorId}"')
 print (f'Brand String: "{BrandString}"')
+print (f'Apic ID: {VersionInfo.EBX.Bits.InitialLocalApicId}, total {len (X86ProcessorArray)} cores')
 print (f'''CPUID: 0x{VersionInfo.EAX.Uint32:05X}
     CPU Type: {VersionInfo.EAX.Bits.ProcessorType:02X}
     CPU Famaly: {(VersionInfo.EAX.Bits.FamilyId + (VersionInfo.EAX.Bits.ExtendedFamilyId << 4)):02X}
