@@ -1,8 +1,8 @@
-# X86ProcessorSample.py
+# X86ApicIdDump.py
 #
 #   part of EfiPy2
 #
-# Copyright (C) 2025 MaxWu efipy.core@gmail.com
+# Copyright (C) 2025 - 2026 MaxWu efipy.core@gmail.com
 #   GPL-2.0
 #
 
