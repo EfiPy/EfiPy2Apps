@@ -1,7 +1,7 @@
 #
 # asm.py
 #
-# Copyright (C) 2016 - 2025 efipy.core@gmail.com All rights reserved.
+# Copyright (C) 2016 - 2026 efipy.core@gmail.com All rights reserved.
 #
 # asm.py is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,8 +25,8 @@ code = prgm.get_stream()
 proc = env.Processor()
 
 code.add(x86.mov(dx, 0x80))
-code.add(x86.mov(ax, 0xaa))
-code.add(x86.out(dx, ax))
+code.add(x86.mov(al, 0xaa))
+code.add(x86.out(dx, al))
 
 prgm.add(code)
 prgm.print_code(pro = True, epi = True, hex = True)

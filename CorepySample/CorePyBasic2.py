@@ -1,6 +1,6 @@
 # CorePyBasic2.py
 #
-# Copyright (C) 2025 efipy.core@gmail.com All rights reserved.
+# Copyright (C) 2025 - 2026 efipy.core@gmail.com All rights reserved.
 #
 # asm.py is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,8 +24,8 @@ def CorePyAdd (a: int, b: int, DumpCode: bool = False) -> int:
     prgm    = env.Program()
     code    = prgm.get_stream()
 
-    code.add(x86.mov(reg.rax, mem.MemRef(reg.rbp, 16)))  # ret = a
-    code.add(x86.add(reg.rax, mem.MemRef(reg.rbp, 24)))  # ret = ret + b
+    code.add(x86.mov(reg.rax, mem.MemRef(reg.rbp, -0x20)))  # ret = a
+    code.add(x86.add(reg.rax, mem.MemRef(reg.rbp, -0x18)))  # ret = ret + b
 
     prgm.add(code)
     if DumpCode:

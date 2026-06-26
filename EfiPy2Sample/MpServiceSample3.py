@@ -1,6 +1,6 @@
 # MpServiceSample3.py
 #
-# Copyright (C) 2025 efipy.core@gmail.com All rights reserved.
+# Copyright (C) 2025 - 2026 efipy.core@gmail.com All rights reserved.
 #
 # asm.py is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -73,7 +73,9 @@ import corepy.arch.x86_64.types.registers as reg
 import corepy.arch.x86_64.lib.memory as mem
 import corepy.arch.x86_64.platform as env
 
-code                = env.InstructionStream()
+prgm                = env.Program()
+code                = prgm.get_stream()
+proc                = env.Processor()
 MachineCodeStream   = None
 
 def LocalApicIdGetMachineCode ():
@@ -126,19 +128,20 @@ def LocalApicIdGetMachineCode ():
 
 def LocalApicIdGetCorePy ():
 
-    global code, MachineCodeStream
+    global prgm, code, MachineCodeStream
 
     code.add(x86.mov(reg.eax, 0xFEE00020))
     code.add(x86.mov(reg.edx, mem.MemRef(reg.eax, 0x00, data_size = 32)))
     code.add(x86.shr(reg.edx, 24))
 
-    code.add(x86.mov(reg.rax, mem.MemRef(reg.rbp, 0x10)))
+    code.add(x86.mov(reg.rax, mem.MemRef(reg.rbp, -0x20)))
     code.add(x86.mov(mem.MemRef(reg.rax, 0, data_size = 32), reg.edx))
 
     code.add(x86.nop())
 
-    # code.print_code(pro = True, epi = True, hex = True)
-    MachineCodeAddress, MachineCodeStream = code.get_code_bytes ()
+    prgm.add(code)
+    prgm.print_code(pro = True, epi = True, hex = True)
+    MachineCodeAddress, MachineCodeStream = prgm.get_code_bytes ()
     return MachineCodeAddress 
 
 def LocalApicIdGetWraper (Buffer):
@@ -149,6 +152,9 @@ def LocalApicIdGetWraper (Buffer):
     LocalApicIdBuffer.value = LocalApicId
 
 
+#
+# 1 of below 3 statements
+#
 # EfiPyLocalApicGet = MpService.EFI_AP_PROCEDURE (LocalApicIdGetWraper)
 # MachineCodeAddress  = LocalApicIdGetMachineCode ()
 MachineCodeAddress  = LocalApicIdGetCorePy ()
