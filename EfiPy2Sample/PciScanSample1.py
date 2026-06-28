@@ -1,7 +1,7 @@
 #
 # PciScan.py
 #
-# Copyright (C) 2016 - 2025 MaxWu efipy.core@gmail.com All rights reserved.
+# Copyright (C) 2016 - 2026 MaxWu efipy.core@gmail.com All rights reserved.
 #
 #   GPL-2.0
 #
@@ -13,13 +13,13 @@ class PciScan:
 
   def __init__ (self):
 
-    import corepy.lib.printer as printer
     import corepy.arch.x86_64.isa as x86
     import corepy.arch.x86_64.types.registers as reg
     import corepy.arch.x86_64.platform as env
     import corepy.arch.x86_64.lib.memory as mem
 
-    self.code   = env.InstructionStream()
+    self.prgm   = env.Program()
+    self.code   = self.prgm.get_stream()
     self.proc   = env.Processor()
     self.params = env.ExecParams()
 
@@ -30,12 +30,15 @@ class PciScan:
     self.code.add(x86.mov(reg.dx, 0x0cfc))
     self.code.add(x86.in_(reg.eax, reg.dx))
 
+    self.prgm.add (self.code)
+    # self.prgm.print_code(pro = True, epi = True, hex = True)
+
   def scan (self, Bus = 0, Dev = 0, Func = 0, Reg = 0):
 
     reg   = pci.PCI_CONFIG_ACCESS_CF8((Reg & 0xFC, Func, Dev, Bus, 0, 1))
 
     self.params.p1 = reg.Uint32
-    ret = self.proc.execute(self.code, params = self.params, mode = 'int')
+    ret = self.proc.execute(self.prgm, params = self.params, mode = 'int')
 
     return ret
 
