@@ -21,8 +21,8 @@ ArgCommand = parser.add_subparsers (help = 'X86 CPU MSR operator')
 parser.add_argument ('-d', '--dump', action = 'store_true', help = 'Dump mass of MSR')
 parser.add_argument ('-w', '--write', action = 'store_true', help = 'Write MSR')
 parser.add_argument ('-r', '--read', action = 'store_true', help = 'Read MSR')
-parser.add_argument ('-c', '--ecx', type = int, help = 'ECX by Read/Write MSR register')
-parser.add_argument ('-v', '--value', type = int, help = 'input value for write MSR')
+parser.add_argument ('-c', '--ecx', type = lambda x: int (x,0), help = 'ECX by Read/Write MSR register in hexadecimal or decimal')
+parser.add_argument ('-v', '--value', type = lambda x: int (x,0), help = 'input value in hexadecimal or decimal to write MSR')
 parser.add_argument ('-a', '--all', action = 'store_true', help = 'MSR operation for all processor, BSP is processed if this argument is not in command parameter.')
 parser.add_argument ('-p', '--processor', type = int, help = 'MSR operation for specified processor, BSP is processed if this argument is not in command parameter.')
 parser.add_argument ('--verbose', action = 'store_true', help = 'Verbose output by Read/Dump MSR')
@@ -420,16 +420,16 @@ def MsrDump (processor: List[X86Processors], verbose: bool = False) -> None:
           print (f'    processor: {p.Index:2d}:')
           DumpStruct (6, v, s)
 
-def MsrWrite(processor: List[X86Processors], ecx: int, value: int) -> None:
-    print (f'MsrWrite, processor: {processor.Index}, ecx: 0x{ecx:08X}, value: 0x{value:016X}')
+def MsrWrite(processor: List[X86Processors], ecx: int, value: int, verbose: bool = False) -> None:
     for p in Processors:
+      print (f'MsrWrite, processor: {p.Index}, ecx: 0x{ecx:08X}, value: 0x{value:016X}')
       v = EfiPy.UINT64 (value)
       p.WrMsr (ecx, v)
 
 def MsrRead (processor: List[X86Processors], ecx: int, verbose: bool = False) -> int:
-    print (f'MsrRead , processor: {processor.Index}, ecx: 0x{ecx:08X}, verbose: {verbose}')
     for p in Processors:
-      v = Msr.MSR_GENERIC_REGISTER (0)
+      print (f'MsrRead , processor: {p.Index}, ecx: 0x{ecx:08X}, verbose: {verbose}')
+      v = Msr.MSR_GENERIC_REGISTER ((0, 0))
       p.RdMsr (ecx, v)
       print (f'    processor: {p.Index:2d}: 0x{v.Uint64:016X}')
 
@@ -443,9 +443,9 @@ else:
 if args.dump:
     MsrDump (Processors, args.verbose)
 elif args.write:
-    MsrWrite (Processors)
+    MsrWrite (Processors, args.ecx, args.value, args.verbose)
 elif args.read:
-    MsrRead (Processors, args.verbose)
+    MsrRead (Processors, args.ecx, args.verbose)
 else:
     parser.print_help()
     exit(-1)
