@@ -6,6 +6,7 @@
 #   GPL-2.0
 #
 
+import EfiPy2 as EfiPy
 from EfiPy2.Lib.X86Processor import X86Processors, X86ProcessorArray
 from EfiPy2.Lib.CpuIdIntel import CPUID_GENERIC_REGISTERs
 from EfiPy2.Lib.Msr import MSR_GENERIC_REGISTER
@@ -19,9 +20,6 @@ for Index, Processor in enumerate (X86ProcessorArray):
 
   print (f'\nCPU {Index} infromation....')
 
-  MmioAddress = 0xFEE00020
-  print (f'  From MMIO 0x{MmioAddress:08X}: 0x{Processor.MemGet32(MmioAddress):08X}')
-
   CpuIndex = 0x0B
 
   CpuIdReg = CPUID_GENERIC_REGISTERs()
@@ -31,6 +29,15 @@ for Index, Processor in enumerate (X86ProcessorArray):
   MsrIndex = 0x1B
   MsrApicReg = MSR_IA32_APIC_BASE_REGISTER ()
   Processor.RdMsr (MsrIndex, MsrApicReg)
+  print (f'  MsrApicReg.Uint64:     0x{MsrApicReg.Uint64:016X}')
+  print (f'  MsrApicReg.Bits.BSP:   0x{MsrApicReg.Bits.BSP:02X}')
+  print (f'  MsrApicReg.Bits.EXTD:  0x{MsrApicReg.Bits.EXTD:02X}')
+  print (f'  MsrApicReg.Bits.EN:    0x{MsrApicReg.Bits.EN:02X}')
+  MmioAddress = (MsrApicReg.Bits.ApicBaseHi << 32) | (MsrApicReg.Bits.ApicBase << 12)
+  print (f'  Local Apic MMIO:       0x{MmioAddress:016X}')
+  MmioAddress += 0x20
+  print (f'  From MMIO 0x{MmioAddress:08X}: 0x{Processor.MemGet32(MmioAddress):08X}')
+
 
   ApicExtd = MsrApicReg.Bits.EXTD
   if MsrApicReg.Bits.EXTD != 0x01:
