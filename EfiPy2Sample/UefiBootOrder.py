@@ -1,7 +1,7 @@
 #
 # VariableBootOrder.py
 #
-# Copyright (C) 2025 MaxWu efipy.core@gmail.com All rights reserved.
+# Copyright (C) 2025 -2026 MaxWu efipy.core@gmail.com All rights reserved.
 #
 # Variable.py is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -37,7 +37,7 @@ if Status != EfiPy.EFI_BUFFER_TOO_SMALL:
     import sys
     sys.exit(1)
 
-VariableBuff    = (EfiPy.CHAR8 * VariableSize.value) ()
+VariableBuff    = (EfiPy.CHAR16 * (VariableSize.value // 2)) ()
 VariableAttr    = EfiPy.UINT32 ()
 Status = EfiPy.gRT.GetVariable(
                      VariableName,
@@ -58,8 +58,9 @@ print (f'''Expect gRT.GetVariable return 0x{EfiPy.EFI_SUCCESS:016X}
     Variable GUID:      {VariableGuid}
     Variable Attribute: {VariableAttr.value}
     Variable size:      {VariableSize.value}
-    Variable buff:      {VariableBuff[:]}
 ''')
 
-from EfiPy2.Lib.HexDump import HexDump
-HexDump (VariableBuff[:])
+print ('Boot Order...', end = ' ')
+for BootOrder in VariableBuff:
+    print (ord(BootOrder), end = ' ')
+print ()
