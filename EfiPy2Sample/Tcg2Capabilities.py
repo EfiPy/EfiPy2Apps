@@ -45,7 +45,7 @@ if __name__ == '__main__':
 Tcg2 Capability
 ===============''')
   DumpStruct (0, ProtocolCapability, EFI_TCG2_BOOT_SERVICE_CAPABILITY)
-print ()
+  print ()
 
   if ProtocolCapability.ProtocolVersion.Major < 0x01 or (ProtocolCapability.ProtocolVersion.Major == 0x01 and ProtocolCapability.ProtocolVersion.Minor == 0x00):
     print (f"No CurrentActivePCRBanks")
