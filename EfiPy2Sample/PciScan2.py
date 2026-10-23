@@ -1,0 +1,198 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+scan_pci.py
+
+UEFI Shell + EfiPy2
+Enumerate all PCI devices across all PCI Root Bridges.
+"""
+
+from EfiPy2 import *
+from EfiPy2.MdePkg.Protocol.PciRootBridgeIo import (
+    gEfiPciRootBridgeIoProtocolGuid,
+    EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL,
+    EfiPciWidthUint8,
+    EfiPciWidthUint16,
+    EfiPciWidthUint32,
+    EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_PCI_ADDRESS,
+)
+import pciids
+
+# ------------------------------------------------------------
+# PCI Configuration Registers
+# ------------------------------------------------------------
+PCI_VENDOR_ID       = 0x00
+PCI_DEVICE_ID       = 0x02
+PCI_REVISION_ID     = 0x08
+PCI_CLASS_CODE      = 0x09
+PCI_HEADER_TYPE     = 0x0E
+PCI_HEADER_MULTI    = 0x80
+
+def pci_addr(bus, dev, func, reg):
+    """
+    Generate a 64-bit address using the EDK2 EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_PCI_ADDRESS structure
+    """
+    pci_address = EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_PCI_ADDRESS()
+    pci_address.Register         = reg & 0xFF
+    pci_address.Function         = func & 0x07
+    pci_address.Device           = dev & 0x1F
+    pci_address.Bus              = bus & 0xFF
+    pci_address.ExtendedRegister = (reg >> 8) & 0xFFF
+
+    # Convert the C structure directly to a 64-bit integer for Pci.Read
+    return UINT64.from_buffer(pci_address).value
+
+def pci_read(pci_io_ptr, width, bus, dev, func, reg, ctype):
+    val = ctype(0)
+    try:
+        pci_io = pci_io_ptr[0]
+        address = pci_addr(bus, dev, func, reg)
+        status = pci_io.Pci.Read(
+            pci_io_ptr,
+            width,
+            UINT64(address),
+            1,
+            byref(val)
+        )
+        if EFI_ERROR(status):
+            return None, status
+        return val.value, status
+    except Exception as e:
+        print (e)
+        return None, 0x8000000000000003
+
+def pci_read8(pci_io_ptr, bus, dev, func, reg):
+    val, _ = pci_read(pci_io_ptr, EfiPciWidthUint8, bus, dev, func, reg, UINT8)
+    return val
+
+def pci_read16(pci_io_ptr, bus, dev, func, reg):
+    val, _ = pci_read(pci_io_ptr, EfiPciWidthUint16, bus, dev, func, reg, UINT16)
+    return val
+
+def pci_read32(pci_io_ptr, bus, dev, func, reg):
+    val, _ = pci_read(pci_io_ptr, EfiPciWidthUint32, bus, dev, func, reg, UINT32)
+    return val
+
+# ------------------------------------------------------------
+# Root Bridge Handle Discovery
+# ------------------------------------------------------------
+def get_all_root_bridges():
+    HandleCount = UINTN(0)
+    HandleBuffer = POINTER(EFI_HANDLE)()
+
+    status = gBS.LocateHandleBuffer(
+        ByProtocol,
+        byref(gEfiPciRootBridgeIoProtocolGuid),
+        None,
+        byref(HandleCount),
+        byref(HandleBuffer)
+    )
+
+    if EFI_ERROR(status) or HandleCount.value == 0:
+        return []
+
+    rbs = []
+    for i in range(HandleCount.value):
+        handle = HandleBuffer[i]
+        TempPointer = PVOID()
+        status = gBS.HandleProtocol(
+            handle,
+            byref(gEfiPciRootBridgeIoProtocolGuid),
+            byref(TempPointer)
+        )
+        if not EFI_ERROR(status):
+            rbs.append(cast(TempPointer, POINTER(EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL)))
+
+    if HandleBuffer:
+        gBS.FreePool(HandleBuffer)
+    return rbs
+
+# ------------------------------------------------------------
+# Scan Logic
+# ------------------------------------------------------------
+def print_pci_device(Bus, Dev, Func, VendorId, DeviceId, RevisionID, BaseClass, SubClass, Interface):
+    DeviceClass, SubClassDict       = pciids.PciClass.get (BaseClass, (f"Class {BaseClass:02X}", {}))
+    SubName, ProgIfDict             =    SubClassDict.get (SubClass,(f"SubClass {BaseClass:02X}", {}))
+    ProgIfName                      =    ProgIfDict.get (Interface, f"ProgIf {Interface:02X}")
+    VendorName, DeviceDict          = pciids.PciIds.get (VendorId, (f"Vendor {VendorId:04X}", {}))
+    DeviceName, _                   =    DeviceDict.get (DeviceId, (f"Device {DeviceId:04X}", {}))
+
+    print (f"{Bus:02X}:{Dev:02X}.{Func:X} {SubName}: {ProgIfName} ({BaseClass:X},{SubClass:X},{Interface:X}): {VendorName}: {DeviceName} ({VendorId:04X} {DeviceId:04X} rev: {RevisionID:02X})")
+
+def scan_single_device(pci_io_ptr, rb_idx, bus, dev, func):
+    vid = pci_read16(pci_io_ptr, bus, dev, func, PCI_VENDOR_ID)
+    if vid is None or vid in (0x0000, 0xFFFF):
+        return None
+
+    did = pci_read16(pci_io_ptr, bus, dev, func, PCI_DEVICE_ID)
+    rev = pci_read8(pci_io_ptr, bus, dev, func, PCI_REVISION_ID)
+    header_type = pci_read8(pci_io_ptr, bus, dev, func, PCI_HEADER_TYPE)
+
+    # Class Code: 3 bytes (ProgIF, SubClass, BaseClass)
+    class_raw = pci_read32(pci_io_ptr, bus, dev, func, 0x08)
+    if class_raw is not None:
+        prog_if = (class_raw >> 8) & 0xFF
+        sub_class = (class_raw >> 16) & 0xFF
+        base_class = (class_raw >> 24) & 0xFF
+    else:
+        prog_if, sub_class, base_class = 0, 0, 0
+
+    return {
+        "rb": rb_idx,
+        "bus": bus,
+        "dev": dev,
+        "func": func,
+        "vid": vid,
+        "did": did,
+        "rev": rev if rev is not None else 0,
+        "base_class": base_class,
+        "sub_class": sub_class,
+        "prog_if": prog_if,
+        "header_type": header_type if header_type is not None else 0,
+    }
+
+def scan_pci():
+    root_bridges = get_all_root_bridges()
+    seen_bdfs = set()
+
+    for rb_idx, rb in enumerate(root_bridges):
+        for bus in range(0x00, 0x100):
+            # Bus probe: check if this Root Bridge manages the current Bus
+            _, status = pci_read(rb, EfiPciWidthUint16, bus, 0, 0, 0x00, UINT16)
+            if status == 0x8000000000000002:  # EFI_INVALID_PARAMETER
+                continue
+
+            for dev in range(0x00, 0x20):
+                # Read Function 0 first
+                dev0 = scan_single_device(rb, rb_idx, bus, dev, 0)
+                if not dev0:
+                    continue
+
+                bdf_key = (bus, dev, 0)
+                if bdf_key not in seen_bdfs:
+                    seen_bdfs.add(bdf_key)
+                    print_pci_device(
+                        dev0["bus"], dev0["dev"], dev0["func"],
+                        dev0["vid"], dev0["did"], dev0["rev"],
+                        dev0["base_class"], dev0["sub_class"], dev0["prog_if"]
+                    )
+
+                # Check if it is a Multifunction Device based on Function 0 HeaderType
+                if dev0["header_type"] & PCI_HEADER_MULTI:
+                    for func in range(1, 8):
+                        dev_sub = scan_single_device(rb, rb_idx, bus, dev, func)
+                        if dev_sub:
+                            sub_key = (bus, dev, func)
+                            if sub_key not in seen_bdfs:
+                                seen_bdfs.add(sub_key)
+                                print_pci_device(
+                                    dev_sub["bus"], dev_sub["dev"], dev_sub["func"],
+                                    dev_sub["vid"], dev_sub["did"], dev_sub["rev"],
+                                    dev_sub["base_class"], dev_sub["sub_class"], dev_sub["prog_if"]
+                                )
+
+def main():
+    scan_pci()
+
+if __name__ == "__main__":
+    main()
