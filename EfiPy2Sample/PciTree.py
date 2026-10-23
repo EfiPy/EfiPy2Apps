@@ -4,10 +4,13 @@
 #
 # GPL-v2
 #
+# Modified by Google DeepMind Antigravity (Gemini)
+#
 
 import EfiPy2 as EfiPy
 from EfiPy2.MdePkg.IndustryStandard import EFIPY_INDUSTRY_STRUCTURE, EFIPY_INDUSTRY_UNION
 import EfiPy2.MdePkg.IndustryStandard.Pci as pci
+import pciids
 
 from EfiPy2.Lib.Acpi.AcpiRetrieve   import ExtractTable
 from EfiPy2.Lib.Acpi.AcpiMcfgParser import AcpiMcfgParser
@@ -44,41 +47,100 @@ def IS_PCI_HC(_p):
   return pci.IS_CLASS3 (_p, pci.PCI_CLASS_BRIDGE, pci.PCI_CLASS_BRIDGE_HOST, pci.PCI_IF_BRIDGE_P2P)
 
 PciCfgBase = 0x00
-ScanB = False
 
-def ScanBus (Bus, Depth):
+def GetDeviceDesc (VendorId: int, DeviceId: int) -> str:
+  VendorName, DeviceDict = pciids.PciIds.get (VendorId, (f"Vendor {VendorId:04x}", {}))
+  DeviceName, _          = DeviceDict.get (DeviceId, (f"Device {DeviceId:04x}", {}))
+  return f"{VendorName} {DeviceName} [{VendorId:04x}:{DeviceId:04x}]"
 
-  global ScanB
+def CollectBusDevices (Bus: int) -> list:
+  devices = []
 
   for Dev in range (pci.PCI_MAX_DEVICE + 1):
     for Func in range (pci.PCI_MAX_FUNC + 1):
 
-        PciCfgOffset  = pci.PCI_ECAM_ADDRESS (Bus, Dev, Func, 0)
-        PciObj, PciType = BuildPciHeader (PciCfgBase, PciCfgOffset)
+      PciCfgOffset = pci.PCI_ECAM_ADDRESS (Bus, Dev, Func, 0)
+      PciObj, _    = BuildPciHeader (PciCfgBase, PciCfgOffset)
 
-        if PciObj.Hdr.VendorId == 0xFFFF and Func == 0:
-          break
+      VendorId = PciObj.Hdr.VendorId
+      if VendorId in (0xFFFF, 0x0000) and Func == 0:
+        break
 
-        if PciObj.Hdr.VendorId == 0xFFFF:
-          continue
+      if VendorId in (0xFFFF, 0x0000):
+        continue
 
-        if pci.IS_PCI_P2P (PciObj):
-            if Depth == 0:
-              print ()
-            print (f'{"------+"*Depth} B {Bus:02X}:{Dev:02X}.{Func:X} ({PciObj.Hdr.VendorId:04X} {PciObj.Hdr.DeviceId:04X}) => ({PciObj.Cfg.SecondaryBus:02X}, {PciObj.Cfg.SubordinateBus:02X})')
-            if Depth == 0:
-              print (' =================================')
-              ScanB = True
-            ScanBus (PciObj.Cfg.SecondaryBus, Depth + 1)
-        else:
-            if ScanB == True and Depth == 0:
-              print ()
-            print (f'{"------+"*Depth} D {Bus:02X}:{Dev:02X}.{Func:X} ({PciObj.Hdr.VendorId:04X} {PciObj.Hdr.DeviceId:04X})')
-            ScanB = False
+      DeviceId = PciObj.Hdr.DeviceId
+      IsMulti  = pci.IS_PCI_MULTI_FUNC (PciObj)
+      IsBridge = pci.IS_PCI_BRIDGE (PciObj) or pci.IS_PCI_P2P (PciObj)
+
+      dev_entry = {
+        "bus":      Bus,
+        "dev":      Dev,
+        "func":     Func,
+        "vid":      VendorId,
+        "did":      DeviceId,
+        "desc":     GetDeviceDesc (VendorId, DeviceId),
+        "is_bridge": IsBridge,
+        "sec_bus":  PciObj.Cfg.SecondaryBus if IsBridge else 0,
+        "sub_bus":  PciObj.Cfg.SubordinateBus if IsBridge else 0,
+        "children": [],
+      }
+
+      if IsBridge and dev_entry["sec_bus"] > Bus:
+        dev_entry["children"] = CollectBusDevices (dev_entry["sec_bus"])
+
+      devices.append (dev_entry)
+
+      if Func == 0 and not IsMulti:
+        break
+
+  return devices
+
+def PrintBusTree (devices: list, line_prefix: str, cont_prefix: str, is_root: bool = False) -> None:
+  if not devices:
+    if is_root:
+      print (line_prefix)
+    return
+
+  total = len (devices)
+  for idx, dev in enumerate (devices):
+    is_first = (idx == 0)
+    is_last  = (idx == total - 1)
+
+    conn = "\\-" if is_last else "+-"
+
+    dev_line_prefix = (line_prefix if (is_first and is_root) else cont_prefix) + conn
+    branch_bar      = "  " if is_last else "| "
+    dev_cont_prefix = cont_prefix + branch_bar
+
+    bdf_str = f"{dev['bus']:02x}:{dev['dev']:02x}.{dev['func']:x}"
+
+    if dev["is_bridge"]:
+      sec = dev["sec_bus"]
+      sub = dev["sub_bus"]
+      bus_tag = f"-[{sec:02x}-{sub:02x}]--"
+
+      print (f"{dev_line_prefix}{bdf_str}{bus_tag}  {dev['desc']}")
+
+      if dev["children"]:
+        child_cont_prefix = dev_cont_prefix + " " * (len (bdf_str) + len (bus_tag))
+        PrintBusTree (dev["children"], child_cont_prefix, child_cont_prefix, is_root=False)
+    else:
+      print (f"{dev_line_prefix}{bdf_str}  {dev['desc']}")
+
+def ScanBus (StartBus: int = 0, EndBus: int = 0xFF, Segment: int = 0) -> None:
+  root_prefix = f"-[{Segment:04x}:{StartBus:02x}-{EndBus:02x}]-"
+  root_cont   = " " * len (root_prefix)
+  devices     = CollectBusDevices (StartBus)
+  PrintBusTree (devices, root_prefix, root_cont, is_root=True)
 
 if __name__ == '__main__':
 
-  from EfiPy2.Lib import EfiPyPci
-  PciCfgBase = EfiPyPci.GetBaseAddress ()
+  AcpiRaw    = ExtractTable (b'MCFG', 0)
+  AcpiObj, _ = AcpiMcfgParser (AcpiRaw)
+  PciCfgBase = AcpiObj.McfgDesc.BaseAddress
+  PciSegment = AcpiObj.McfgDesc.PciSegmentGroupNumber
+  StartBus   = AcpiObj.McfgDesc.StartBusNumber
+  EndBus     = AcpiObj.McfgDesc.EndBusNumber
 
-  ScanBus (0, 0)
+  ScanBus (StartBus, EndBus, PciSegment)
