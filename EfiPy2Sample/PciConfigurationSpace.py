@@ -727,12 +727,19 @@ if __name__ == '__main__':
   Bus   = 0x01
   Dev   = 0x00
   Func  = 0x00
+  Segment = 0x0000
+
+  McfgDesc = next ((Desc for Desc in AcpiObj.McfgDesc
+                   if Desc.PciSegmentGroupNumber == Segment and
+                   Desc.StartBusNumber <= Bus <= Desc.EndBusNumber), None)
+  if McfgDesc is None:
+    parser.error (f'No MCFG allocation for segment {Segment:04x}, bus {Bus:02x}.')
 
   PciCfgOffset  = pci.PCI_ECAM_ADDRESS (Bus, Dev, Func, 0)
-  PciCfgAddress = AcpiObj.McfgDesc.BaseAddress + PciCfgOffset
+  PciCfgAddress = McfgDesc.BaseAddress + PciCfgOffset
 
-  PciObj, PciType, IsPcieDevice = BuildPciHeader (AcpiObj.McfgDesc.BaseAddress, PciCfgOffset)
-  print (f"PCI{'e' if IsPcieDevice else ''} Base: 0x{AcpiObj.McfgDesc.BaseAddress:08X}, Device {Bus:02X}:{Dev:02X}.{Func:X} ECAM: 0x{PciCfgOffset:08X}")
+  PciObj, PciType, IsPcieDevice = BuildPciHeader (McfgDesc.BaseAddress, PciCfgOffset)
+  print (f"PCI{'e' if IsPcieDevice else ''} Base: 0x{McfgDesc.BaseAddress:08X}, Device {Bus:02X}:{Dev:02X}.{Func:X} ECAM: 0x{PciCfgOffset:08X}")
   DumpStruct (0, PciObj, PciType)
 
   PciRaw = (EfiPy.UINT8 * 0x100).from_address (PciCfgAddress)

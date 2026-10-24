@@ -5,9 +5,35 @@
 
 `PciTree.py` 是一支運行於 UEFI Shell 環境下的 **EfiPy2** 腳本。它透過 **ACPI `MCFG` 表**與 **ECAM (Enhanced Configuration Access Mechanism)** 記憶體映射機制，直接存取 PCIe 配置空間（Configuration Space），並將系統上所有的 Host Bridge、PCI-to-PCI Bridge（Root Port / Switch）與末端裝置（Endpoint），以類似 Linux `lspci -vt` 的樹狀結構搭配 `pciids` 可讀裝置名稱完整呈現出來。
 
-Below, we walk through the implementation of `PciTree.py` function by function, explaining both the underlying PCIe/ACPI specifications and how EfiPy2 simplifies low-level hardware access in Python.
+Below, we provide a bilingual AI Prompt that can generate `PciTree.py` in one shot, followed by a function-by-function walkthrough explaining the underlying PCIe/ACPI specifications and EfiPy2 implementation details.
 
-以下我們依照 `PciTree.py` 的程式結構，一步步解析每個函式的底層 PCIe/ACPI 規範原理與 EfiPy2 實作細節。
+以下我們先提供能一次生成 `PciTree.py` 的中英對照 AI Prompt（提示詞），接著依照 `PciTree.py` 的程式結構，一步步解析每個函式的底層 PCIe/ACPI 規範原理與 EfiPy2 實作細節。
+
+---
+
+## AI Prompt for Generating `PciTree.py` (生成 `PciTree.py` 的 AI 提示詞)
+
+You can use the following concise, direct prompt to ask an AI assistant to generate `PciTree.py`:
+
+你可以使用以下簡短扼要的中英文提示詞（Prompt），直接請 AI 產生 `PciTree.py`：
+
+**English Prompt:**
+```text
+Write a UEFI Shell script `PciTree.py` using `EfiPy2` to display the PCIe bus tree like Linux `lspci -vt`:
+1. Parse the ACPI `MCFG` table (`ExtractTable` + `AcpiMcfgParser`) to get ECAM `BaseAddress`, `PciSegmentGroupNumber`, `StartBusNumber`, and `EndBusNumber`.
+2. Map ECAM MMIO into EDK2 `PCI_TYPE00` / `PCI_BRIDGE_CONTROL_REGISTER` structures and recursively scan buses across PCI-to-PCI Bridges (`SecondaryBus` to `SubordinateBus`), checking `IS_PCI_MULTI_FUNC` on Function 0.
+3. Look up Vendor and Device names via `pciids` (`VendorName DeviceName [vid:did]`).
+4. Format root as `-[Segment:StartBus-EndBus]-`, devices as `B:D.F`, and bridges as `B:D.F-[Sec-Sub]--` with their own device name, indenting child devices on the next line.
+```
+
+**中文 Prompt：**
+```text
+請用 `EfiPy2` 寫一支 UEFI Shell 腳本 `PciTree.py`，以類似 Linux `lspci -vt` 的樹狀格式印出 PCIe 拓樸：
+1. 解析 ACPI `MCFG` 表（`ExtractTable` + `AcpiMcfgParser`）取得 ECAM `BaseAddress`、`PciSegmentGroupNumber`、`StartBusNumber` 與 `EndBusNumber`。
+2. 將 ECAM MMIO 映射為 EDK2 PCI Header 結構（區分 Type 00 Endpoint 與 Type 01 Bridge），檢查 Function 0 的 `IS_PCI_MULTI_FUNC`，並順著 Bridge 的 `SecondaryBus` 遞迴掃描。
+3. 用 `pciids` 查出可讀的廠商與裝置名稱（`VendorName DeviceName [vid:did]`）。
+4. 根節點印出 `-[Segment:StartBus-EndBus]-`，裝置印出完整 `B:D.F`，Bridge 印出 `B:D.F-[Sec-Sub]--` 與自身名稱，其子裝置換行縮排對齊。
+```
 
 ---
 

@@ -53,7 +53,12 @@ def GetDeviceDesc (VendorId: int, DeviceId: int) -> str:
   DeviceName, _          = DeviceDict.get (DeviceId, (f"Device {DeviceId:04x}", {}))
   return f"{VendorName} {DeviceName} [{VendorId:04x}:{DeviceId:04x}]"
 
-def CollectBusDevices (Bus: int) -> list:
+def CollectBusDevices (Bus: int, EndBus: int = 0xFF, Visited = None) -> list:
+  if Visited is None:
+    Visited = set ()
+  if Bus > EndBus or Bus in Visited:
+    return []
+  Visited.add (Bus)
   devices = []
 
   for Dev in range (pci.PCI_MAX_DEVICE + 1):
@@ -71,7 +76,7 @@ def CollectBusDevices (Bus: int) -> list:
 
       DeviceId = PciObj.Hdr.DeviceId
       IsMulti  = pci.IS_PCI_MULTI_FUNC (PciObj)
-      IsBridge = pci.IS_PCI_BRIDGE (PciObj) or pci.IS_PCI_P2P (PciObj)
+      IsBridge = pci.IS_PCI_BRIDGE (PciObj)
 
       dev_entry = {
         "bus":      Bus,
@@ -86,8 +91,10 @@ def CollectBusDevices (Bus: int) -> list:
         "children": [],
       }
 
-      if IsBridge and dev_entry["sec_bus"] > Bus:
-        dev_entry["children"] = CollectBusDevices (dev_entry["sec_bus"])
+      if (IsBridge and Bus < dev_entry["sec_bus"] <= dev_entry["sub_bus"] and
+          dev_entry["sec_bus"] <= EndBus):
+        dev_entry["children"] = CollectBusDevices (
+            dev_entry["sec_bus"], min (dev_entry["sub_bus"], EndBus), Visited)
 
       devices.append (dev_entry)
 
@@ -131,16 +138,17 @@ def PrintBusTree (devices: list, line_prefix: str, cont_prefix: str, is_root: bo
 def ScanBus (StartBus: int = 0, EndBus: int = 0xFF, Segment: int = 0) -> None:
   root_prefix = f"-[{Segment:04x}:{StartBus:02x}-{EndBus:02x}]-"
   root_cont   = " " * len (root_prefix)
-  devices     = CollectBusDevices (StartBus)
+  devices     = CollectBusDevices (StartBus, EndBus)
   PrintBusTree (devices, root_prefix, root_cont, is_root=True)
 
 if __name__ == '__main__':
 
   AcpiRaw    = ExtractTable (b'MCFG', 0)
   AcpiObj, _ = AcpiMcfgParser (AcpiRaw)
-  PciCfgBase = AcpiObj.McfgDesc.BaseAddress
-  PciSegment = AcpiObj.McfgDesc.PciSegmentGroupNumber
-  StartBus   = AcpiObj.McfgDesc.StartBusNumber
-  EndBus     = AcpiObj.McfgDesc.EndBusNumber
+  for McfgDesc in AcpiObj.McfgDesc:
+    PciCfgBase = McfgDesc.BaseAddress
+    PciSegment = McfgDesc.PciSegmentGroupNumber
+    StartBus   = McfgDesc.StartBusNumber
+    EndBus     = McfgDesc.EndBusNumber
 
-  ScanBus (StartBus, EndBus, PciSegment)
+    ScanBus (StartBus, EndBus, PciSegment)
