@@ -20,7 +20,7 @@ You can use the following concise, direct prompt to ask an AI assistant to gener
 **English Prompt:**
 ```text
 Write a UEFI Shell script `PciTree.py` using `EfiPy2` to display the PCIe bus tree like Linux `lspci -vt`:
-1. Parse the ACPI `MCFG` table (`ExtractTable` + `AcpiMcfgParser`) to get ECAM `BaseAddress`, `PciSegmentGroupNumber`, `StartBusNumber`, and `EndBusNumber`.
+1. Parse the ACPI `MCFG` table (`ExtractTable` + `AcpiMcfgParser`) and iterate over its `McfgDesc` array to get ECAM `BaseAddress`, `PciSegmentGroupNumber`, `StartBusNumber`, and `EndBusNumber` for each allocation.
 2. Map ECAM MMIO into EDK2 `PCI_TYPE00` / `PCI_BRIDGE_CONTROL_REGISTER` structures and recursively scan buses across PCI-to-PCI Bridges (`SecondaryBus` to `SubordinateBus`), checking `IS_PCI_MULTI_FUNC` on Function 0.
 3. Look up Vendor and Device names via `pciids` (`VendorName DeviceName [vid:did]`).
 4. Format root as `-[Segment:StartBus-EndBus]-`, devices as `B:D.F`, and bridges as `B:D.F-[Sec-Sub]--` with their own device name, indenting child devices on the next line.
@@ -29,7 +29,7 @@ Write a UEFI Shell script `PciTree.py` using `EfiPy2` to display the PCIe bus tr
 **中文 Prompt：**
 ```text
 請用 `EfiPy2` 寫一支 UEFI Shell 腳本 `PciTree.py`，以類似 Linux `lspci -vt` 的樹狀格式印出 PCIe 拓樸：
-1. 解析 ACPI `MCFG` 表（`ExtractTable` + `AcpiMcfgParser`）取得 ECAM `BaseAddress`、`PciSegmentGroupNumber`、`StartBusNumber` 與 `EndBusNumber`。
+1. 解析 ACPI `MCFG` 表（`ExtractTable` + `AcpiMcfgParser`），迭代 `McfgDesc` 陣列，取得每筆 allocation 的 ECAM `BaseAddress`、`PciSegmentGroupNumber`、`StartBusNumber` 與 `EndBusNumber`。
 2. 將 ECAM MMIO 映射為 EDK2 PCI Header 結構（區分 Type 00 Endpoint 與 Type 01 Bridge），檢查 Function 0 的 `IS_PCI_MULTI_FUNC`，並順著 Bridge 的 `SecondaryBus` 遞迴掃描。
 3. 用 `pciids` 查出可讀的廠商與裝置名稱（`VendorName DeviceName [vid:did]`）。
 4. 根節點印出 `-[Segment:StartBus-EndBus]-`，裝置印出完整 `B:D.F`，Bridge 印出 `B:D.F-[Sec-Sub]--` 與自身名稱，其子裝置換行縮排對齊。
@@ -50,8 +50,8 @@ flowchart LR
 The script's workflow is divided into four core stages:
 整支程式的運作邏輯分為四個核心階段：
 
-1. **Parse the ACPI `MCFG` Table (`__main__`)**: Retrieve the ECAM MMIO base address (`BaseAddress`), the PCI Segment Group number (`PciSegmentGroupNumber`), and the decoded bus range (`StartBusNumber` to `EndBusNumber`).
-   **解析 ACPI `MCFG` 表（`__main__`）**：取得 ECAM MMIO 基址（`BaseAddress`）、`PciSegmentGroupNumber` 以及 `StartBusNumber` ~ `EndBusNumber`。
+1. **Parse the ACPI `MCFG` Table (`__main__`)**: Iterate over all allocations to retrieve each ECAM MMIO base address (`BaseAddress`), PCI Segment Group number (`PciSegmentGroupNumber`), and decoded bus range (`StartBusNumber` to `EndBusNumber`), then call `ScanBus` for each allocation.
+   **解析 ACPI `MCFG` 表（`__main__`）**：迭代所有 allocation，取得各筆 ECAM MMIO 基址（`BaseAddress`）、`PciSegmentGroupNumber` 以及 `StartBusNumber` ~ `EndBusNumber`，並逐筆呼叫 `ScanBus`。
 2. **Dynamically Overlay PCI Headers (`BuildPciHeader`)**: Inspect the common header to determine whether a function is an Endpoint (Type 00) or a Bridge (Type 01), then overlay the corresponding EDK2 `Structure` directly onto the ECAM MMIO address.
    **動態映射 PCI Header（`BuildPciHeader`）**：根據裝置是 Endpoint（Type 00）還是 Bridge（Type 01），動態建立對應的 EDK2 `Structure` 並直接映射（Overlay）到 ECAM 記憶體位址。
 3. **Recursively Collect Bus Topology (`CollectBusDevices` & `GetDeviceDesc`)**: Scan all Devices and Functions on a given Bus, resolve human-readable names via `pciids`, and recursively follow `SecondaryBus` whenever a PCI-to-PCI Bridge is encountered.
@@ -69,12 +69,13 @@ if __name__ == '__main__':
 
   AcpiRaw    = ExtractTable (b'MCFG', 0)
   AcpiObj, _ = AcpiMcfgParser (AcpiRaw)
-  PciCfgBase = AcpiObj.McfgDesc.BaseAddress
-  PciSegment = AcpiObj.McfgDesc.PciSegmentGroupNumber
-  StartBus   = AcpiObj.McfgDesc.StartBusNumber
-  EndBus     = AcpiObj.McfgDesc.EndBusNumber
+  for McfgDesc in AcpiObj.McfgDesc:
+    PciCfgBase = McfgDesc.BaseAddress
+    PciSegment = McfgDesc.PciSegmentGroupNumber
+    StartBus   = McfgDesc.StartBusNumber
+    EndBus     = McfgDesc.EndBusNumber
 
-  ScanBus (StartBus, EndBus, PciSegment)
+    ScanBus (StartBus, EndBus, PciSegment)
 ```
 
 In modern PCIe systems, the 4 KB configuration space of every PCI function is linearly mapped into physical memory (MMIO) via **ECAM**. To discover where this MMIO region resides, firmware and operating systems consult the **ACPI `MCFG` (Memory Mapped Configuration Space Access)** table:
@@ -85,17 +86,17 @@ In modern PCIe systems, the 4 KB configuration space of every PCI function is li
   Extracts the raw binary payload of the first `MCFG` table from the UEFI System Table's ACPI Configuration Tables.
   從 UEFI System Table 的 ACPI Configuration Table 中取出原始的 `MCFG` 二進位資料。
 - **`AcpiMcfgParser(AcpiRaw)`**:
-  Casts the raw bytes into EfiPy2's `EFIPY_ACPI_MEMORY_MAPPED_CONFIGURATION_SPACE_ACCESS_DESCRIPTION_TABLE` structure.
-  將二進位資料轉型為 EfiPy2 定義的 `EFIPY_ACPI_MEMORY_MAPPED_CONFIGURATION_SPACE_ACCESS_DESCRIPTION_TABLE` 結構體。
+  Validates the signature, length, and checksum, then builds a dynamic ctypes structure containing the MCFG header and a `McfgDesc` array sized from the table length. The single argument and `(object, type)` return format remain unchanged.
+  驗證 signature、長度與 checksum，再依表長度動態建立包含 MCFG header 與 `McfgDesc` 陣列的 ctypes 結構；單一參數及 `(物件, 型別)` 回傳格式維持不變。
 - **`AcpiObj.McfgDesc`**:
-  Corresponds to `EFI_ACPI_MEMORY_MAPPED_ENHANCED_CONFIGURATION_SPACE_BASE_ADDRESS_ALLOCATION_STRUCTURE` defined in the PCI Firmware Specification, providing four essential fields:
-  對應 PCI Firmware Specification 中的 `EFI_ACPI_MEMORY_MAPPED_ENHANCED_CONFIGURATION_SPACE_BASE_ADDRESS_ALLOCATION_STRUCTURE`，直接提供四個關鍵欄位：
+  An array of `EFI_ACPI_MEMORY_MAPPED_ENHANCED_CONFIGURATION_SPACE_BASE_ADDRESS_ALLOCATION_STRUCTURE` entries, even for a single allocation. Each entry provides four essential fields; multiple entries may belong to the same Segment:
+  由 `EFI_ACPI_MEMORY_MAPPED_ENHANCED_CONFIGURATION_SPACE_BASE_ADDRESS_ALLOCATION_STRUCTURE` 組成的陣列，即使只有一筆 allocation 也是陣列。每筆提供四個關鍵欄位；多筆 allocation 可屬於同一個 Segment：
   - `BaseAddress`: The physical starting address of the ECAM MMIO region (stored in the global `PciCfgBase`).
     ECAM MMIO 的起始實體位址（存入全域變數 `PciCfgBase`）。
   - `PciSegmentGroupNumber`: The 16-bit PCI Segment / Domain number (e.g., `0x0000`).
     16-bit 的 PCI Segment / Domain 編號（例如 `0x0000`）。
   - `StartBusNumber` / `EndBusNumber`: The starting and ending Bus numbers decoded by this ECAM allocation (e.g., `0x00` to `0xFF`).
-    此 Segment 管理的起始與結束 Bus 編號（例如 `0x00` ~ `0xFF`）。
+    此 allocation 管理的起始與結束 Bus 編號（例如 `0x00` ~ `0xFF`）。
 
 ---
 
@@ -180,7 +181,12 @@ To combine human-readable device names (like `lspci -v`) with raw hexadecimal ID
 ## 遞迴收集匯流排與 Bridge 子樹
 
 ```python
-def CollectBusDevices (Bus: int) -> list:
+def CollectBusDevices (Bus: int, EndBus: int = 0xFF, Visited = None) -> list:
+  if Visited is None:
+    Visited = set ()
+  if Bus > EndBus or Bus in Visited:
+    return []
+  Visited.add (Bus)
   devices = []
 
   for Dev in range (pci.PCI_MAX_DEVICE + 1):
@@ -198,7 +204,7 @@ def CollectBusDevices (Bus: int) -> list:
 
       DeviceId = PciObj.Hdr.DeviceId
       IsMulti  = pci.IS_PCI_MULTI_FUNC (PciObj)
-      IsBridge = pci.IS_PCI_BRIDGE (PciObj) or pci.IS_PCI_P2P (PciObj)
+      IsBridge = pci.IS_PCI_BRIDGE (PciObj)
 
       dev_entry = {
         "bus":      Bus,
@@ -213,8 +219,10 @@ def CollectBusDevices (Bus: int) -> list:
         "children": [],
       }
 
-      if IsBridge and dev_entry["sec_bus"] > Bus:
-        dev_entry["children"] = CollectBusDevices (dev_entry["sec_bus"])
+      if (IsBridge and Bus < dev_entry["sec_bus"] <= dev_entry["sub_bus"] and
+          dev_entry["sec_bus"] <= EndBus):
+        dev_entry["children"] = CollectBusDevices (
+            dev_entry["sec_bus"], min (dev_entry["sub_bus"], EndBus), Visited)
 
       devices.append (dev_entry)
 
@@ -238,11 +246,11 @@ def CollectBusDevices (Bus: int) -> list:
    - 當讀取空插槽時，Host Bridge 會回傳 `0xFFFF`。若 `Func == 0` 讀出 `0xFFFF`（或 `0x0000`），代表該 `Dev` 沒有裝置，直接 `break` 跳過其餘 Function。
    - 若在 `Func > 0` 讀到 `0xFFFF`，代表多功能裝置的該 Function 未實作，則 `continue` 檢查下一個 Function。
 3. **Recursive Traversal Across Bridges**:
-   - If `IsBridge` is `True` (`pci.IS_PCI_BRIDGE(PciObj)` or `pci.IS_PCI_P2P(PciObj)`), the script reads `SecondaryBus` (the bus immediately downstream of the bridge) and `SubordinateBus` (the highest bus number behind the bridge subtree).
-   - When `sec_bus > Bus`, it recursively calls `CollectBusDevices(dev_entry["sec_bus"])` and attaches the returned list to `dev_entry["children"]`.
+   - If `IsBridge` is `True` (`pci.IS_PCI_BRIDGE(PciObj)`, Type 01), the script reads `SecondaryBus` (the bus immediately downstream of the bridge) and `SubordinateBus` (the highest bus number behind the bridge subtree).
+   - Recursion requires `Bus < sec_bus <= sub_bus` and `sec_bus <= EndBus`. The child limit becomes `min(sub_bus, EndBus)`, and the shared `Visited` set skips previously scanned buses. The returned list is attached to `dev_entry["children"]`.
    **遞迴深入 PCI-to-PCI Bridge**：
    - 若 `IsBridge` 為 `True`，則從 Type 01 Header 的 `PciObj.Cfg` 讀出 `SecondaryBus`（Bridge 下游緊鄰的 Bus 號）與 `SubordinateBus`（該 Bridge 子樹下最大的 Bus 號）。
-   - 當 `sec_bus > Bus` 時，遞迴呼叫 `CollectBusDevices(dev_entry["sec_bus"])`，將下游 Bus 的所有裝置存入 `dev_entry["children"]`。
+   - 僅在 `Bus < sec_bus <= sub_bus` 且 `sec_bus <= EndBus` 時遞迴；下層上限設為 `min(sub_bus, EndBus)`，並共用 `Visited` 集合跳過已掃描的 Bus，將結果存入 `dev_entry["children"]`。
 4. **Multi-Function Check (`pci.IS_PCI_MULTI_FUNC`)**:
    - `if Func == 0 and not IsMulti: break` checks Bit 7 (`0x80`) of `HeaderType` on Function 0.
    - Single-function devices often ignore the Function number bits during configuration cycles; if we do not stop after `Func == 0`, the same device could be duplicated across `Func 1..7`.
@@ -301,7 +309,7 @@ def PrintBusTree (devices: list, line_prefix: str, cont_prefix: str, is_root: bo
 def ScanBus (StartBus: int = 0, EndBus: int = 0xFF, Segment: int = 0) -> None:
   root_prefix = f"-[{Segment:04x}:{StartBus:02x}-{EndBus:02x}]-"
   root_cont   = " " * len (root_prefix)
-  devices     = CollectBusDevices (StartBus)
+  devices     = CollectBusDevices (StartBus, EndBus)
   PrintBusTree (devices, root_prefix, root_cont, is_root=True)
 ```
 
