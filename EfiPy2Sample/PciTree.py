@@ -1,6 +1,6 @@
 # PciTree.py
 #
-# Copyright (C) 2025 MaxWu efipy.core@gmail.com All rights reserved.
+# Copyright (C) 2025 - 2026 MaxWu efipy.core@gmail.com All rights reserved.
 #
 # GPL-v2
 #
@@ -46,14 +46,12 @@ def BuildPciHeader (EcamBase: int, EcamOffset: int) -> None:
 def IS_PCI_HC(_p):
   return pci.IS_CLASS3 (_p, pci.PCI_CLASS_BRIDGE, pci.PCI_CLASS_BRIDGE_HOST, pci.PCI_IF_BRIDGE_P2P)
 
-PciCfgBase = 0x00
-
 def GetDeviceDesc (VendorId: int, DeviceId: int) -> str:
   VendorName, DeviceDict = pciids.PciIds.get (VendorId, (f"Vendor {VendorId:04x}", {}))
   DeviceName, _          = DeviceDict.get (DeviceId, (f"Device {DeviceId:04x}", {}))
   return f"{VendorName} {DeviceName} [{VendorId:04x}:{DeviceId:04x}]"
 
-def CollectBusDevices (Bus: int, EndBus: int = 0xFF, Visited = None) -> list:
+def CollectBusDevices (PciCfgBase: int, Bus: int, EndBus: int = 0xFF, Visited = None) -> list:
   if Visited is None:
     Visited = set ()
   if Bus > EndBus or Bus in Visited:
@@ -94,7 +92,7 @@ def CollectBusDevices (Bus: int, EndBus: int = 0xFF, Visited = None) -> list:
       if (IsBridge and Bus < dev_entry["sec_bus"] <= dev_entry["sub_bus"] and
           dev_entry["sec_bus"] <= EndBus):
         dev_entry["children"] = CollectBusDevices (
-            dev_entry["sec_bus"], min (dev_entry["sub_bus"], EndBus), Visited)
+            PciCfgBase, dev_entry["sec_bus"], min (dev_entry["sub_bus"], EndBus), Visited)
 
       devices.append (dev_entry)
 
@@ -135,10 +133,14 @@ def PrintBusTree (devices: list, line_prefix: str, cont_prefix: str, is_root: bo
     else:
       print (f"{dev_line_prefix}{bdf_str}  {dev['desc']}")
 
-def ScanBus (StartBus: int = 0, EndBus: int = 0xFF, Segment: int = 0) -> None:
+def ScanBus (McfgDesc) -> None:
+  PciCfgBase  = McfgDesc.BaseAddress
+  Segment     = McfgDesc.PciSegmentGroupNumber
+  StartBus    = McfgDesc.StartBusNumber
+  EndBus      = McfgDesc.EndBusNumber
   root_prefix = f"-[{Segment:04x}:{StartBus:02x}-{EndBus:02x}]-"
   root_cont   = " " * len (root_prefix)
-  devices     = CollectBusDevices (StartBus, EndBus)
+  devices     = CollectBusDevices (PciCfgBase, StartBus, EndBus)
   PrintBusTree (devices, root_prefix, root_cont, is_root=True)
 
 if __name__ == '__main__':
@@ -146,9 +148,4 @@ if __name__ == '__main__':
   AcpiRaw    = ExtractTable (b'MCFG', 0)
   AcpiObj, _ = AcpiMcfgParser (AcpiRaw)
   for McfgDesc in AcpiObj.McfgDesc:
-    PciCfgBase = McfgDesc.BaseAddress
-    PciSegment = McfgDesc.PciSegmentGroupNumber
-    StartBus   = McfgDesc.StartBusNumber
-    EndBus     = McfgDesc.EndBusNumber
-
-    ScanBus (StartBus, EndBus, PciSegment)
+    ScanBus (McfgDesc)
