@@ -118,7 +118,7 @@ def print_pci_device(Bus, Dev, Func, PciCfg):
     Interface, SubClass, BaseClass  = PciCfg.Hdr.ClassCode [:]
 
     DeviceClass, SubClassDict       = pciids.PciClass.get (BaseClass, (f"Class {BaseClass:02X}", {}))
-    SubName, ProgIfDict             =    SubClassDict.get (SubClass,(f"SubClass {BaseClass:02X}", {}))
+    SubName, ProgIfDict             =    SubClassDict.get (SubClass,(f"SubClass {SubClass:02X}", {}))
     ProgIfName                      =    ProgIfDict.get (Interface, f"ProgIf {Interface:02X}")
     VendorName, DeviceDict          = pciids.PciIds.get (VendorId, (f"Vendor {VendorId:04X}", {}))
     DeviceName, _                   =    DeviceDict.get (DeviceId, (f"Device {DeviceId:04X}", {}))
