@@ -55,3 +55,11 @@ print (f'0x{TestValue.value:08X} == 0x{BaseRet:08X}, result: {TestValue.value ==
 Me.MemSet8 (EfiPy.addressof (TestValue), 0xEF)
 BaseRet = Me.MemGet32 (EfiPy.addressof (TestValue))
 print (f'0x{TestValue.value:08X} == 0x{BaseRet:08X}, result: {TestValue.value == BaseRet}')
+
+TestValue64 = EfiPy.UINT64 (0x0123456789ABCDEF)
+BaseRet64   = Me.MemGet64 (EfiPy.addressof (TestValue64))
+print (f'0x{TestValue64.value:016X} == 0x{BaseRet64:016X}, result: {TestValue64.value == BaseRet64}')
+
+Me.MemSet64 (EfiPy.addressof (TestValue64), 0xFEDCBA9876543210)
+BaseRet64   = Me.MemGet64 (EfiPy.addressof (TestValue64))
+print (f'0x{TestValue64.value:016X} == 0x{BaseRet64:016X}, result: {TestValue64.value == BaseRet64}')
