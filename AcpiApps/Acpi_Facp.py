@@ -17,11 +17,19 @@ if __name__ == '__main__':
     from EfiPy2.Lib.Acpi.AcpiRetrieve import ExtractTable
 
     FacpRaw = ExtractTable (FacpSignature, 0)
-    if FacpRaw is None:
+    if not FacpRaw:
       print ('Can not retrieve FACP')
-      exit(0)
+      exit (0)
+
     FacpObj, FacpType = AcpiFacpParser (FacpRaw)
+    if FacpObj is None:
+      print ('Can not parse FACP')
+      exit (0)
 
+    print (f"""
+Fixed ACPI Description Table (FACP)
+=======================================================================================================================""")
     DumpStruct (2, FacpObj, FacpType)
-    HexDump (FacpRaw, 0, 4)
 
+    print ('\n==== ACPI FACP RAW data ======')
+    HexDump (FacpRaw)
